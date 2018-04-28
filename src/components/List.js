@@ -3,7 +3,7 @@ import { Text, View, ActivityIndicator, TouchableOpacity, FlatList, Image, Dimen
 import FetchList from './api/getList.js';
 import DropDown from './dropdown.js';
 
-const localhost = '192.168.0.105:3000'
+const localhost = '192.168.0.106:3000'
 const Data = new FetchList();
 
 class ProductList extends Component {
