@@ -1,27 +1,33 @@
 import React, { Component } from 'react';
-import { Text, View, ActivityIndicator, TouchableOpacity, FlatList, Image, Dimensions } from 'react-native';
+import { Text, View, ActivityIndicator, TouchableOpacity, FlatList, Image, Dimensions, ListView } from 'react-native';
 import FetchList from './api/getList.js';
 import DropDown from './dropdown.js';
+import Accordion from 'react-native-accordion';
+import { Icon } from 'native-base';
+import { ProgressDialog } from 'react-native-simple-dialogs';
 
-const localhost = '192.168.0.106:3000'
+const localhost = '192.168.0.110:3000'
 const Data = new FetchList();
 
 class ProductList extends Component {
     constructor(props) {
         super(props);
+        this.accordionRefs = [];
+        const ds = new ListView.DataSource({ rowHasChanged: (r1, r2) => r1 !== r2 });
         this.state = {
             data: [],
             loading: true,
             loader: false,
             sort: '',
             page: 1,
-            limit: 20,
+            limit: 2500,
             Date: null,
             modulusCount: 0,
-            random: -1
+            random: -1,
+            dataSource: ds,
+            progressVisible: true
         };
-        this.getValue = this.getValue.bind(this);
-        this.renderItem = this.renderItem.bind(this)
+        // this.renderItem = this.renderItem.bind(this)
     }
 
     componentWillMount() {
@@ -30,16 +36,16 @@ class ProductList extends Component {
 
     fetchData() {
         const { sort, page, limit, random } = this.state;
-        Data.getProducts(localhost, sort, page, limit)
+        Data.getProducts(page, limit)
             .then(res => res.json())
             .then(result => {
-                if (result.length > 0) {
-                    result.push({ "id": Math.random().toString(), "type": 'ad', "face": "undifined", "uri": "http://" + localhost + "/ads/?r=" + random })
+                if (result.body.length > 0) {
                     this.setState({
-                        data: page === 1 ? result : [...this.state.data, ...result],
+                        dataSource: page === 1 ? this.state.dataSource.cloneWithRows(result.body) : [...this.state.dataSource,...result.body],
+                        data: page === 1 ? result.body : [...this.state.data, ...result.body],
                         loading: false,
                         loader: true,
-                        random: this.state.random + 1
+                        progressVisible: false
                     })
                 } else {
                     this.setState({ loader: false })
@@ -48,38 +54,8 @@ class ProductList extends Component {
             });
     }
 
-    getDate(date) {
-        //find full dates 
-        var publish = new Date(date);
-        var fullDate = publish.toDateString();
-        var today = new Date();
-        var one_day = 1000 * 60 * 60 * 24;
-
-        // Convert both dates to milliseconds
-        var date1_ms = publish.getTime();
-        var date2_ms = today.getTime();
-
-        // Calculate the difference in milliseconds
-        var difference_ms = date2_ms - date1_ms;
-
-        // Convert back to days and return
-        var days = Math.round(difference_ms / one_day);
-        if (days > 7) {
-            var FinalDate = fullDate
-        } else {
-            var FinalDate = days + " days ago";
-        }
-        return FinalDate;
-    }
-
-
     async handleLoadMore() {
         await this.setState({ page: this.state.page + 1 });
-        await this.fetchData()
-    }
-
-    async getValue(value) {
-        await this.setState({ sort: value, loading: true, page: 1 });
         await this.fetchData()
     }
 
@@ -106,69 +82,115 @@ class ProductList extends Component {
 
     }
 
-    renderItem = (item) => {
-        if (item.type) {
-            return (
-                <View style={styles.mainContainer}>
-                    <View style={styles.cardContainer}>
-                        <View style={styles.adsContainer}>
-                            <Image
-                                style={{ width: '100%', flex: 1 }}
-                                source={{ uri: item.uri }}
-                            />
-                        </View>
-                    </View>
-                </View>
-            );
-        } else {
-            const Date = this.getDate(item.date)
-            const Dollar = ((item.price / 100).toFixed(2));
-            return (
-                <View style={styles.mainContainer}>
-                    <View style={styles.cardContainer}>
-                        <View style={styles.faceContainer}>
-                            <Text style={{ color: '#000', fontSize: item.size, fontWeight: 'bold' }} numberOfLines={1}>{item.face}</Text>
-                        </View>
-                        <View style={styles.dataContainer}>
-                            <Text>{item.size + " pixels"}</Text>
-                            <Text style={{ color: 'blue' }}>{"$ " + Dollar}</Text>
-                            <Text style={{ textAlign: 'center' }}>{Date}</Text>
-                        </View>
-                        <TouchableOpacity style={styles.btnContainer}>
-                            <Text style={styles.btn}>BUY NOW</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            );
-        }
+    // _renderHeader(section,index,isActive) {
+    //     return (
+    //       <View style={styles.header}>
+    //         <Text style={styles.headerText}>{section.name}</Text>
+    //         {!isActive && <Icon name="add" style={styles.iconStyle} />}
+    //         {isActive &&    <Icon name="remove" style={styles.iconStyle} />}   
+    //       </View>
+    //     );
+    //   }
+
+    //   _renderContent(section) {
+    //     return (
+    //       <View style={styles.content}>
+    //       <View style={{flexDirection:'row',justifyContent:'flex-start',padding:5}}>
+    //         <View style={{flexDirection:'row'}}>
+    //         <Text style={[styles.contentHeadingText,{marginLeft:3}]}>Location:</Text>
+    //         <Text style={styles.contentText}> {section.location}</Text>   
+    //         </View>
+    //         <View style={{flexDirection:'row'}}>
+    //         <Text style={styles.contentHeadingText}>Status:</Text>
+    //         <Text style={styles.contentText}> {section.status}</Text>   
+    //         </View>
+    //         <View style={{flexDirection:'row'}}>
+    //         <Text style={styles.contentHeadingText}>Barcode:</Text>
+    //         <Text style={styles.contentText}> {section.bar_code}</Text>   
+    //         </View>
+    //       </View>   
+    //       </View>
+    //     );
+    //   }
+    _renderRow(item, a, i) {
+        return (
+            <Accordion
+                easing="easeOutCubic"
+                ref={(ref) => this.accordionRefs[parseInt(i)] = ref}
+                header={({ isOpen }) => this._renderHeader(isOpen, item)}
+                content={this._renderContent(item)}
+                onPress={() => this.onPressSection(parseInt(i), this.accordionRefs)}
+            />
+        );
     }
 
-    renderList() {
-        if (this.state.loading)
-            return <View style={styles.loading}>
-                <ActivityIndicator size="large" color="#0000ff" />
-            </View>;
+    _renderHeader(isOpen, item) {
         return (
-            <FlatList
-                data={this.state.data}
-                renderItem={({ item }) => this.renderItem(item)}
-                keyExtractor={item => item.id}
-                ListFooterComponent={this.renderFooter.bind(this)}
-                onEndReached={this.handleLoadMore.bind(this)}
-                onEndReachedThreshold={0.5}
-            />);
+            <View style={styles.header}>
+                <Text style={styles.headerText}>{item.name}</Text>
+                {!isOpen && <Icon name="add" style={styles.iconStyle} />}
+                {isOpen && <Icon name="remove" style={styles.iconStyle} />}
+            </View>
+        );
+    }
+
+    _renderContent(item) {
+        return (
+            <View style={styles.content}>
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-start', padding: 5 }}>
+                    <View style={{ flexDirection: 'row' }}>
+                        <Text style={[styles.contentHeadingText, { marginLeft: 3 }]}>Location:</Text>
+                        <Text style={styles.contentText}> {item.location}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row' }}>
+                        <Text style={styles.contentHeadingText}>Status:</Text>
+                        <Text style={styles.contentText}> {item.status}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row' }}>
+                        <Text style={styles.contentHeadingText}>Barcode:</Text>
+                        <Text style={styles.contentText}> {item.bar_code}</Text>
+                    </View>
+                </View>
+            </View>
+        );
+    }
+
+    onPressSection(rowID, accordionRefs) {
+        this.setState({ progressVisible: true })
+        //Toggle other accordions except of the one clicked
+        for (let i = 0; i < accordionRefs.length; i++) {
+            if (i != rowID && accordionRefs[i] != null) {
+                accordionRefs[i].close();
+                this.setState({progressVisible:false})
+            }
+        }
     }
 
     render() {
         return (
-            <View style={{ borderTopWidth: 0, borderBottomWidth: 0, flex: 1 }}>
-                <DropDown
-                    value="Select Filter"
-                    onSubmit={this.getValue}
+            <View style={styles.mainContainer}>
+                <ProgressDialog
+                    visible={this.state.progressVisible}
+                    message="Please, wait..."
                 />
-                {this.renderList()}
+
+                <ListView
+                    dataSource={this.state.dataSource}
+                    renderRow={(item, a, i) => this._renderRow(item, a, i)}
+                    // renderFooter={this.renderFooter.bind(this)}
+                    // onEndReached={this.handleLoadMore.bind(this)}
+                />
             </View>
         );
+        // return (
+        //     <FlatList
+        //         data={this.state.data}
+        //         renderItem={({ item }) => this.renderItem(item)}
+        //         keyExtractor={item => ''+item.id}
+        //         ListFooterComponent={this.renderFooter.bind(this)}
+        //         onEndReached={this.handleLoadMore.bind(this)}
+        //         onEndReachedThreshold={0.1}
+        //     />);
     }
 }
 
@@ -182,7 +204,6 @@ const styles = {
         margin: 15
     },
     loading: {
-        flex: 1,
         justifyContent: 'center',
         alignItems: 'center'
     },
@@ -222,6 +243,42 @@ const styles = {
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 10
+    },
+    header: {
+        backgroundColor: '#346794',
+        paddingLeft: 10,
+        paddingRight: 10,
+        marginTop: 2,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        height: 35
+    },
+    headerText: {
+        fontSize: 12,
+        //   fontWeight: '400',
+        color: '#fff',
+        // fontFamily: font1
+    },
+    iconStyle: {
+        fontSize: 14,
+        color: '#fff'
+    },
+    content: {
+        backgroundColor: '#254967'
+    },
+    contentHeadingText: {
+        fontSize: 11,
+        color: '#4482b5',
+        marginLeft: 10,
+        // fontFamily: font1
+        // marginTop:5
+    },
+    contentText: {
+        color: '#fff',
+        fontSize: 10.5,
+        // fontFamily: font
+        // marginTop:5
     }
 
 };
